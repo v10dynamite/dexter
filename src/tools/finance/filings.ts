@@ -157,4 +157,3 @@ export const get8KFilingItems = new DynamicStructuredTool({
     return formatToolResult(data, [url]);
   },
 });
-

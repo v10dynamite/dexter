@@ -1,7 +1,7 @@
 import { readCache, writeCache, describeRequest } from '../../utils/cache.js';
 import { logger } from '../../utils/logger.js';
 
-const BASE_URL = 'https://api.financialdatasets.ai';
+const DEFAULT_BASE_URL = 'https://api.financialdatasets.ai';
 
 export interface ApiResponse {
   data: Record<string, unknown>;
@@ -38,6 +38,10 @@ export function stripFieldsDeep(value: unknown, fields: readonly string[]): unkn
   }
 
   return walk(value);
+}
+
+function getBaseUrl(): string {
+  return process.env.FINANCE_BASE_URL || DEFAULT_BASE_URL;
 }
 
 function getApiKey(): string {
@@ -129,7 +133,7 @@ export const api = {
       }
     }
 
-    const url = new URL(`${BASE_URL}${endpoint}`);
+    const url = new URL(`${getBaseUrl()}${endpoint}`);
 
     // Add params to URL, handling arrays
     for (const [key, value] of Object.entries(params)) {
@@ -168,7 +172,7 @@ export const api = {
     body: Record<string, unknown>,
   ): Promise<ApiResponse> {
     const label = `POST ${endpoint}`;
-    const url = `${BASE_URL}${endpoint}`;
+    const url = `${getBaseUrl()}${endpoint}`;
 
     const data = await executeRequest(url, label, {
       method: 'POST',

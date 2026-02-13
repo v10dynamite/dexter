@@ -46,6 +46,10 @@ export interface RegisteredTool {
  * @returns Array of registered tools
  */
 export function getToolRegistry(model: string): RegisteredTool[] {
+  const vnOnlyMode = ['1', 'true', 'yes', 'on'].includes(
+    String(process.env.VN_ONLY_MODE || '').toLowerCase()
+  );
+
   const tools: RegisteredTool[] = [
     {
       name: 'get_financials',
@@ -228,14 +232,14 @@ export function getToolRegistry(model: string): RegisteredTool[] {
     });
   }
 
-  return tools;
+  return vnOnlyMode ? tools.filter((tool) => tool.name !== 'read_filings') : tools;
 }
 
 /**
  * Build a name → concurrencySafe map for the tool executor.
  */
 export function getToolConcurrencyMap(model: string): Map<string, boolean> {
-  return new Map(getToolRegistry(model).map(t => [t.name, t.concurrencySafe]));
+  return new Map(getToolRegistry(model).map((t) => [t.name, t.concurrencySafe]));
 }
 
 /**
