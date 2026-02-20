@@ -7,6 +7,7 @@ import { formatToolResult } from '../types.js';
 import { getCurrentDate } from '../../agent/prompts.js';
 import { withTimeout, SUB_TOOL_TIMEOUT_MS } from './utils.js';
 import { MARKET_DATA_FORMATTERS } from './formatters.js';
+import { detectVnPriceProbe } from './vn-only.js';
 
 /**
  * Rich description for the get_market_data tool.
@@ -132,6 +133,46 @@ Given a user's natural language query about market data, call the appropriate to
 Call the appropriate tool(s) now.`;
 }
 
+async function runSimpleVnPriceProbe(
+  query: string,
+  config?: RunnableConfig,
+  onProgress?: (msg: string) => void,
+): Promise<string | null> {
+  const probe = detectVnPriceProbe(query);
+  if (!probe || !probe.isSimplePriceQuery) {
+    return null;
+  }
+
+  onProgress?.('Fetching market data...');
+  try {
+    const rawResult = await withTimeout(
+      getStockPrice.invoke({ ticker: probe.ticker }, config),
+      SUB_TOOL_TIMEOUT_MS,
+      'get_stock_price',
+    );
+    const result = typeof rawResult === 'string' ? rawResult : JSON.stringify(rawResult);
+    const parsed = JSON.parse(result) as { data?: unknown; sourceUrls?: string[] };
+
+    return formatToolResult(
+      { [`get_stock_price_${probe.ticker}`]: parsed.data },
+      parsed.sourceUrls || [],
+    );
+  } catch (error) {
+    return formatToolResult(
+      {
+        _errors: [
+          {
+            tool: 'get_stock_price',
+            args: { ticker: probe.ticker },
+            error: error instanceof Error ? error.message : String(error),
+          },
+        ],
+      },
+      [],
+    );
+  }
+}
+
 // Input schema for the get_market_data tool
 const GetMarketDataInputSchema = z.object({
   query: z.string().describe('Natural language query about market data, prices, news, or insider activity'),
@@ -159,6 +200,11 @@ export function createGetMarketData(model: string): DynamicStructuredTool {
     schema: GetMarketDataInputSchema,
     func: async (input, _runManager, config?: RunnableConfig) => {
       const onProgress = config?.metadata?.onProgress as ((msg: string) => void) | undefined;
+
+      const simpleProbeResult = await runSimpleVnPriceProbe(input.query, config, onProgress);
+      if (simpleProbeResult !== null) {
+        return simpleProbeResult;
+      }
 
       // 1. Call LLM with market data tools bound (native tool calling)
       onProgress?.('Fetching market data...');

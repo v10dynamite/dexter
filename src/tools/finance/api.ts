@@ -1,5 +1,6 @@
 import { readCache, writeCache, describeRequest } from '../../utils/cache.js';
 import { logger } from '../../utils/logger.js';
+import { isVnOnlyMode, normalizeVnTicker } from './vn-only.js';
 
 const DEFAULT_BASE_URL = 'https://api.financialdatasets.ai';
 
@@ -40,12 +41,69 @@ export function stripFieldsDeep(value: unknown, fields: readonly string[]): unkn
   return walk(value);
 }
 
+export type ApiParams = Record<string, string | number | string[] | undefined>;
+
+interface ApiErrorDetail {
+  code?: string;
+  message?: string;
+}
+
 function getBaseUrl(): string {
   return process.env.FINANCE_BASE_URL || DEFAULT_BASE_URL;
 }
 
 function getApiKey(): string {
   return process.env.FINANCIAL_DATASETS_API_KEY || '';
+}
+
+export function normalizeApiParams(params: ApiParams): ApiParams {
+  if (!isVnOnlyMode()) {
+    return params;
+  }
+
+  const normalized: ApiParams = { ...params };
+  if (typeof normalized.ticker === 'string') {
+    normalized.ticker = normalizeVnTicker(normalized.ticker);
+  }
+  return normalized;
+}
+
+async function extractApiErrorDetail(response: Response): Promise<ApiErrorDetail | null> {
+  try {
+    const payload = (await response.clone().json()) as {
+      error?: { code?: unknown; message?: unknown };
+      code?: unknown;
+      message?: unknown;
+    };
+
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+
+    const nestedError = payload.error && typeof payload.error === 'object' ? payload.error : undefined;
+
+    const code =
+      typeof nestedError?.code === 'string'
+        ? nestedError.code
+        : typeof payload.code === 'string'
+          ? payload.code
+          : undefined;
+
+    const message =
+      typeof nestedError?.message === 'string'
+        ? nestedError.message
+        : typeof payload.message === 'string'
+          ? payload.message
+          : undefined;
+
+    if (!code && !message) {
+      return null;
+    }
+
+    return { code, message };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -104,8 +162,13 @@ async function executeRequest(
 
   if (!response.ok) {
     const detail = `${response.status} ${response.statusText}`;
-    logger.error(`[Financial Datasets API] error: ${label} — ${detail}`);
-    throw new Error(`[Financial Datasets API] request failed: ${detail}`);
+    const errorDetail = await extractApiErrorDetail(response);
+    const detailSuffix =
+      errorDetail && (errorDetail.code || errorDetail.message)
+        ? ` (${errorDetail.code || 'unknown_error'}: ${errorDetail.message || 'request_failed'})`
+        : '';
+    logger.error(`[Financial Datasets API] error: ${label} — ${detail}${detailSuffix}`);
+    throw new Error(`[Financial Datasets API] request failed: ${detail}${detailSuffix}`);
   }
 
   const data = await response.json().catch(() => {
@@ -120,14 +183,15 @@ async function executeRequest(
 export const api = {
   async get(
     endpoint: string,
-    params: Record<string, string | number | string[] | undefined>,
+    params: ApiParams,
     options?: { cacheable?: boolean; ttlMs?: number },
   ): Promise<ApiResponse> {
-    const label = describeRequest(endpoint, params);
+    const normalizedParams = normalizeApiParams(params);
+    const label = describeRequest(endpoint, normalizedParams);
 
     // Check local cache first — avoids redundant network calls for immutable data
     if (options?.cacheable) {
-      const cached = readCache(endpoint, params, options.ttlMs);
+      const cached = readCache(endpoint, normalizedParams, options.ttlMs);
       if (cached) {
         return cached;
       }
@@ -136,7 +200,7 @@ export const api = {
     const url = new URL(`${getBaseUrl()}${endpoint}`);
 
     // Add params to URL, handling arrays
-    for (const [key, value] of Object.entries(params)) {
+    for (const [key, value] of Object.entries(normalizedParams)) {
       if (value !== undefined && value !== null) {
         if (Array.isArray(value)) {
           value.forEach((v) => url.searchParams.append(key, v));
@@ -161,7 +225,7 @@ export const api = {
 
     // Persist for future requests when the caller marked the response as cacheable
     if (options?.cacheable) {
-      writeCache(endpoint, params, data, url.toString());
+      writeCache(endpoint, normalizedParams, data, url.toString());
     }
 
     return { data, url: url.toString() };
