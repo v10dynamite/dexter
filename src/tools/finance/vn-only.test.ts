@@ -30,6 +30,12 @@ describe('normalizeApiParams', () => {
     expect(params.period).toBe('ttm');
   });
 
+  test('normalizes exchange suffix in VN-only mode', () => {
+    process.env.VN_ONLY_MODE = '1';
+    const params = normalizeApiParams({ ticker: 'vcb:HOSE' });
+    expect(params.ticker).toBe('VCB');
+  });
+
   test('keeps ticker untouched when VN-only mode is off', () => {
     delete process.env.VN_ONLY_MODE;
     const params = normalizeApiParams({ ticker: 'fpt.vn' });
@@ -53,6 +59,33 @@ describe('detectVnPriceProbe', () => {
 
     expect(probe).not.toBeNull();
     expect(probe?.ticker).toBe('XXXX');
+    expect(probe?.isSimplePriceQuery).toBe(true);
+  });
+
+  test('normalizes .VN suffix in simple probe', () => {
+    process.env.VN_ONLY_MODE = '1';
+    const probe = detectVnPriceProbe('Giá FPT.VN');
+
+    expect(probe).not.toBeNull();
+    expect(probe?.ticker).toBe('FPT');
+    expect(probe?.isSimplePriceQuery).toBe(true);
+  });
+
+  test('normalizes exchange suffix in simple probe', () => {
+    process.env.VN_ONLY_MODE = '1';
+    const probe = detectVnPriceProbe('Giá VCB:HOSE');
+
+    expect(probe).not.toBeNull();
+    expect(probe?.ticker).toBe('VCB');
+    expect(probe?.isSimplePriceQuery).toBe(true);
+  });
+
+  test('normalizes lowercase ticker with suffix in simple probe', () => {
+    process.env.VN_ONLY_MODE = '1';
+    const probe = detectVnPriceProbe('gia fpt.vn');
+
+    expect(probe).not.toBeNull();
+    expect(probe?.ticker).toBe('FPT');
     expect(probe?.isSimplePriceQuery).toBe(true);
   });
 

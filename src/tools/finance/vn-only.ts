@@ -42,10 +42,13 @@ function extractTickerCandidates(query: string): string[] {
   const deduped: string[] = [];
 
   for (let idx = 0; idx < words.length; idx += 1) {
-    const rawToken = words[idx].replace(/[^A-Za-z0-9]/g, '');
+    const rawToken = words[idx]
+      .replace(/^[^A-Za-z0-9]+/g, '')
+      .replace(/[^A-Za-z0-9:.]+$/g, '');
     if (!rawToken) continue;
 
-    const token = rawToken.toUpperCase();
+    // Normalize exchange suffixes before validating ticker shape.
+    const token = normalizeVnTicker(rawToken);
     if (!/^[A-Z0-9]{3,5}$/.test(token)) continue;
     if (TICKER_STOPWORDS.has(token)) continue;
     if (!/[A-Z]/.test(token)) continue;
