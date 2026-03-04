@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { normalizeApiParams } from './api.js';
-import { detectVnPriceProbe, normalizeVnTicker } from './vn-only.js';
+import { detectVnPriceBatchProbe, detectVnPriceProbe, normalizeVnTicker } from './vn-only.js';
 
 const originalVnOnlyMode = process.env.VN_ONLY_MODE;
 
@@ -106,5 +106,34 @@ describe('detectVnPriceProbe', () => {
   test('returns null when VN-only mode is disabled', () => {
     delete process.env.VN_ONLY_MODE;
     expect(detectVnPriceProbe('Giá FPT')).toBeNull();
+  });
+});
+
+describe('detectVnPriceBatchProbe', () => {
+  test('detects multi-ticker historical price query', () => {
+    process.env.VN_ONLY_MODE = '1';
+    const probe = detectVnPriceBatchProbe(
+      'Cho tôi snapshot + 6 tháng giá của CTG, SHB, DXG, VIC, MSN'
+    );
+
+    expect(probe).not.toBeNull();
+    expect(probe?.tickers).toEqual(['CTG', 'SHB', 'DXG', 'VIC', 'MSN']);
+    expect(probe?.lookbackMonths).toBe(6);
+    expect(probe?.isPriceOnlyQuery).toBe(true);
+    expect(probe?.startDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(probe?.endDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  test('returns null for non-historical price query', () => {
+    process.env.VN_ONLY_MODE = '1';
+    expect(detectVnPriceBatchProbe('Giá CTG và SHB hiện tại')).toBeNull();
+  });
+
+  test('flags non-price-only query when financial metric intent is included', () => {
+    process.env.VN_ONLY_MODE = '1';
+    const probe = detectVnPriceBatchProbe('Giá 6 tháng của CTG, SHB và P/E hiện tại');
+
+    expect(probe).not.toBeNull();
+    expect(probe?.isPriceOnlyQuery).toBe(false);
   });
 });

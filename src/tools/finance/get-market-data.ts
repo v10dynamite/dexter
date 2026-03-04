@@ -7,7 +7,8 @@ import { formatToolResult } from '../types.js';
 import { getCurrentDate } from '../../agent/prompts.js';
 import { withTimeout, SUB_TOOL_TIMEOUT_MS } from './utils.js';
 import { MARKET_DATA_FORMATTERS } from './formatters.js';
-import { detectVnPriceProbe } from './vn-only.js';
+import { api } from './api.js';
+import { detectVnPriceBatchProbe, detectVnPriceProbe } from './vn-only.js';
 
 /**
  * Rich description for the get_market_data tool.
@@ -173,6 +174,132 @@ async function runSimpleVnPriceProbe(
   }
 }
 
+interface PriceRow {
+  date?: string;
+  high?: number;
+  low?: number;
+  close?: number;
+  volume?: number;
+}
+
+function toNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function classifyTrend(prices: PriceRow[]): 'up' | 'down' | 'sideways' | 'unknown' {
+  if (prices.length < 2) return 'unknown';
+  const start = toNumber(prices[0]?.close);
+  const end = toNumber(prices[prices.length - 1]?.close);
+  if (start === null || end === null || start === 0) return 'unknown';
+  const pct = (end - start) / start;
+  if (pct >= 0.05) return 'up';
+  if (pct <= -0.05) return 'down';
+  return 'sideways';
+}
+
+function sortPricesByDateAsc(prices: PriceRow[]): PriceRow[] {
+  return [...prices].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+}
+
+async function runVnBatchHistoryProbe(
+  query: string,
+  _config?: RunnableConfig,
+  onProgress?: (msg: string) => void,
+): Promise<string | null> {
+  const probe = detectVnPriceBatchProbe(query);
+  if (!probe) {
+    return null;
+  }
+
+  onProgress?.('Fetching market data...');
+
+  const summaryRows: Array<Record<string, unknown>> = [];
+  const sourceUrls: string[] = [];
+  const errors: Array<{ tool: string; args: Record<string, unknown>; error: string }> = [];
+
+  await Promise.all(
+    probe.tickers.map(async (ticker) => {
+      try {
+        const [snapshotResponse, historyResponse] = await Promise.all([
+          api.get('/prices/snapshot/', { ticker }, { cacheable: true }),
+          api.get(
+            '/prices/',
+            {
+              ticker,
+              interval: 'day',
+              start_date: probe.startDate,
+              end_date: probe.endDate,
+            },
+            { cacheable: true },
+          ),
+        ]);
+
+        sourceUrls.push(snapshotResponse.url, historyResponse.url);
+
+        const snapshotData = (snapshotResponse.data?.snapshot || {}) as Record<string, unknown>;
+        const rawPrices = Array.isArray(historyResponse.data?.prices)
+          ? (historyResponse.data.prices as PriceRow[])
+          : [];
+        const prices = sortPricesByDateAsc(rawPrices);
+
+        const highValues = prices
+          .map((price) => toNumber(price.high))
+          .filter((value): value is number => value !== null);
+        const lowValues = prices
+          .map((price) => toNumber(price.low))
+          .filter((value): value is number => value !== null);
+
+        const close = toNumber(snapshotData.close) ?? toNumber(prices[prices.length - 1]?.close);
+        const volumeLatest =
+          toNumber(snapshotData.volume) ?? toNumber(prices[prices.length - 1]?.volume);
+        const asOf = typeof snapshotData.as_of === 'string' ? snapshotData.as_of : null;
+
+        summaryRows.push({
+          ticker,
+          close,
+          as_of: asOf,
+          lookback_high: highValues.length > 0 ? Math.max(...highValues) : null,
+          lookback_low: lowValues.length > 0 ? Math.min(...lowValues) : null,
+          trend: classifyTrend(prices),
+          volume_latest: volumeLatest,
+          interval: 'day',
+          start_date: probe.startDate,
+          end_date: probe.endDate,
+        });
+      } catch (error) {
+        errors.push({
+          tool: 'get_stock_prices',
+          args: {
+            ticker,
+            interval: 'day',
+            start_date: probe.startDate,
+            end_date: probe.endDate,
+          },
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }),
+  );
+
+  const payload: Record<string, unknown> = {
+    price_history_summary: summaryRows,
+    lookback_months: probe.lookbackMonths,
+    start_date: probe.startDate,
+    end_date: probe.endDate,
+  };
+
+  if (errors.length > 0) {
+    payload._errors = errors;
+  }
+
+  return formatToolResult(payload, sourceUrls);
+}
+
 // Input schema for the get_market_data tool
 const GetMarketDataInputSchema = z.object({
   query: z.string().describe('Natural language query about market data, prices, news, or insider activity'),
@@ -200,6 +327,11 @@ export function createGetMarketData(model: string): DynamicStructuredTool {
     schema: GetMarketDataInputSchema,
     func: async (input, _runManager, config?: RunnableConfig) => {
       const onProgress = config?.metadata?.onProgress as ((msg: string) => void) | undefined;
+
+      const batchProbeResult = await runVnBatchHistoryProbe(input.query, config, onProgress);
+      if (batchProbeResult !== null) {
+        return batchProbeResult;
+      }
 
       const simpleProbeResult = await runSimpleVnPriceProbe(input.query, config, onProgress);
       if (simpleProbeResult !== null) {
