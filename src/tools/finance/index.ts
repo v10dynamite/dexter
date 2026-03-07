@@ -13,4 +13,6 @@ export { createGetFinancials } from './get-financials.js';
 export { createGetMarketData } from './get-market-data.js';
 export { createReadFilings } from './read-filings.js';
 export { createScreenStocks } from './screen-stocks.js';
-
+export { getSmartMoney, VN_SMART_MONEY_DESCRIPTION } from './vn-smart-money.js';
+export { getCompanyEvents, VN_COMPANY_EVENTS_DESCRIPTION } from './vn-company-events.js';
+export { getMarketValuation, VN_MARKET_VALUATION_DESCRIPTION } from './vn-market-valuation.js';

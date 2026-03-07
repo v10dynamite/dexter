@@ -1,5 +1,5 @@
 import { StructuredToolInterface } from '@langchain/core/tools';
-import { createGetFinancials, createGetMarketData, createReadFilings, createScreenStocks } from './finance/index.js';
+import { createGetFinancials, createGetMarketData, createReadFilings, createScreenStocks, getCompanyEvents, getMarketValuation, getSmartMoney, VN_COMPANY_EVENTS_DESCRIPTION, VN_MARKET_VALUATION_DESCRIPTION, VN_SMART_MONEY_DESCRIPTION } from './finance/index.js';
 import { exaSearch, perplexitySearch, tavilySearch, langSearch, WEB_SEARCH_DESCRIPTION, xSearchTool, X_SEARCH_DESCRIPTION } from './search/index.js';
 import { createWebSearchTool, type WebSearchProvider } from './search/web-search.js';
 import { getSetting } from '../utils/config.js';
@@ -77,6 +77,27 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       tool: createScreenStocks(model),
       description: SCREEN_STOCKS_DESCRIPTION,
       compactDescription: 'Screen stocks by financial criteria (P/E, growth, margins, etc.).',
+      concurrencySafe: true,
+    },
+    {
+      name: 'vn_smart_money',
+      tool: getSmartMoney,
+      description: VN_SMART_MONEY_DESCRIPTION,
+      compactDescription: 'VN foreign/proprietary flow snapshots for a ticker from the local proxy.',
+      concurrencySafe: true,
+    },
+    {
+      name: 'vn_company_events',
+      tool: getCompanyEvents,
+      description: VN_COMPANY_EVENTS_DESCRIPTION,
+      compactDescription: 'Upcoming and historical VN corporate events such as dividends and shareholder meetings.',
+      concurrencySafe: true,
+    },
+    {
+      name: 'vn_market_valuation',
+      tool: getMarketValuation,
+      description: VN_MARKET_VALUATION_DESCRIPTION,
+      compactDescription: 'VNINDEX market-wide valuation snapshot, including P/E and P/B context.',
       concurrencySafe: true,
     },
     {
