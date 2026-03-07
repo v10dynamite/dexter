@@ -15,8 +15,17 @@ export const getMarketValuation = new DynamicStructuredTool({
   schema: z.object({}),
   func: async () => {
     const { data, url } = await callApi('/market/valuation/', {});
+    const rawValuation =
+      data && typeof data === 'object' && data.valuation && typeof data.valuation === 'object'
+        ? (data.valuation as Record<string, unknown>)
+        : (data as Record<string, unknown>);
+    const compactValuation = {
+      index: rawValuation.index ?? 'VNINDEX',
+      source: rawValuation.source ?? 'vnstock',
+      pe: rawValuation.pe ?? null,
+      pb: rawValuation.pb ?? null,
+    };
 
-    return formatToolResult(data.valuation || data, [url]);
+    return formatToolResult({ valuation: compactValuation }, [url]);
   },
 });
-

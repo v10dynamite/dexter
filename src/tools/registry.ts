@@ -5,6 +5,7 @@ import { createWebSearchTool, type WebSearchProvider } from './search/web-search
 import { getSetting } from '../utils/config.js';
 import type { SearchProviderId } from '../utils/env.js';
 import { skillTool, SKILL_TOOL_DESCRIPTION } from './skill.js';
+import { isVnExtendedToolsEnabled } from './finance/api.js';
 import { createWebFetch, WEB_FETCH_DESCRIPTION } from './fetch/web-fetch.js';
 import { browserTool, BROWSER_DESCRIPTION } from './browser/browser.js';
 import { readFileTool, READ_FILE_DESCRIPTION } from './filesystem/read-file.js';
@@ -77,27 +78,6 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       tool: createScreenStocks(model),
       description: SCREEN_STOCKS_DESCRIPTION,
       compactDescription: 'Screen stocks by financial criteria (P/E, growth, margins, etc.).',
-      concurrencySafe: true,
-    },
-    {
-      name: 'vn_smart_money',
-      tool: getSmartMoney,
-      description: VN_SMART_MONEY_DESCRIPTION,
-      compactDescription: 'VN foreign/proprietary flow snapshots for a ticker from the local proxy.',
-      concurrencySafe: true,
-    },
-    {
-      name: 'vn_company_events',
-      tool: getCompanyEvents,
-      description: VN_COMPANY_EVENTS_DESCRIPTION,
-      compactDescription: 'Upcoming and historical VN corporate events such as dividends and shareholder meetings.',
-      concurrencySafe: true,
-    },
-    {
-      name: 'vn_market_valuation',
-      tool: getMarketValuation,
-      description: VN_MARKET_VALUATION_DESCRIPTION,
-      compactDescription: 'VNINDEX market-wide valuation snapshot, including P/E and P/B context.',
       concurrencySafe: true,
     },
     {
@@ -185,6 +165,30 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       concurrencySafe: false,
     },
   ];
+
+  if (isVnExtendedToolsEnabled()) {
+    tools.push({
+      name: 'vn_smart_money',
+      tool: getSmartMoney,
+      description: VN_SMART_MONEY_DESCRIPTION,
+      compactDescription: 'VN foreign/proprietary flow snapshots for a ticker from the local proxy.',
+      concurrencySafe: true,
+    });
+    tools.push({
+      name: 'vn_company_events',
+      tool: getCompanyEvents,
+      description: VN_COMPANY_EVENTS_DESCRIPTION,
+      compactDescription: 'Upcoming and historical VN corporate events such as dividends and shareholder meetings.',
+      concurrencySafe: true,
+    });
+    tools.push({
+      name: 'vn_market_valuation',
+      tool: getMarketValuation,
+      description: VN_MARKET_VALUATION_DESCRIPTION,
+      compactDescription: 'VNINDEX market-wide valuation snapshot, including P/E and P/B context.',
+      concurrencySafe: true,
+    });
+  }
 
   // Build web_search as a fallback chain over whichever providers have keys configured.
   // The user's preferred provider (set via /search) is tried first; the others act as fallbacks.

@@ -3,10 +3,36 @@ import { logger } from '../../utils/logger.js';
 import { isVnOnlyMode, normalizeVnTicker } from './vn-only.js';
 
 const DEFAULT_BASE_URL = 'https://api.financialdatasets.ai';
+const VN_EXTENDED_ENABLED_VALUES = new Set(['1', 'true', 'yes', 'on']);
+const LOCAL_PROXY_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', 'host.docker.internal']);
 
 export interface ApiResponse {
   data: Record<string, unknown>;
   url: string;
+}
+
+function isEnvEnabled(value: string | undefined): boolean {
+  return VN_EXTENDED_ENABLED_VALUES.has(String(value || '').toLowerCase());
+}
+
+function isLocalProxyBaseUrl(baseUrl: string): boolean {
+  try {
+    const parsed = new URL(baseUrl);
+    return LOCAL_PROXY_HOSTNAMES.has(parsed.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+export function isVnExtendedToolsEnabled(): boolean {
+  if (!isVnOnlyMode()) {
+    return false;
+  }
+  if (isEnvEnabled(process.env.ENABLE_VN_EXTENDED_TOOLS)) {
+    return true;
+  }
+  const baseUrl = process.env.FINANCE_BASE_URL || DEFAULT_BASE_URL;
+  return isLocalProxyBaseUrl(baseUrl);
 }
 
 /**
