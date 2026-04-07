@@ -1,11 +1,32 @@
 import { StructuredToolInterface } from '@langchain/core/tools';
-import { createGetFinancials, createGetMarketData, createReadFilings, createScreenStocks, getCompanyEvents, getMarketValuation, getSmartMoney, VN_COMPANY_EVENTS_DESCRIPTION, VN_MARKET_VALUATION_DESCRIPTION, VN_SMART_MONEY_DESCRIPTION } from './finance/index.js';
+import {
+  createGetFinancials,
+  createGetMarketData,
+  createReadFilings,
+  createScreenStocks,
+  getCompanyEvents,
+  getCompanyNewsVn,
+  getMarketNewsVn,
+  getNewsTopicsVn,
+  getMarketValuation,
+  getSmartMoney,
+  getTechnicalIndicatorsVn,
+  getTechnicalSignalSnapshotVn,
+  VN_COMPANY_EVENTS_DESCRIPTION,
+  VN_COMPANY_NEWS_DESCRIPTION,
+  VN_MARKET_NEWS_DESCRIPTION,
+  VN_NEWS_TOPICS_DESCRIPTION,
+  VN_MARKET_VALUATION_DESCRIPTION,
+  VN_SMART_MONEY_DESCRIPTION,
+  VN_TECHNICAL_INDICATORS_DESCRIPTION,
+  VN_TECHNICAL_SIGNAL_SNAPSHOT_DESCRIPTION,
+} from './finance/index.js';
 import { exaSearch, perplexitySearch, tavilySearch, langSearch, WEB_SEARCH_DESCRIPTION, xSearchTool, X_SEARCH_DESCRIPTION } from './search/index.js';
 import { createWebSearchTool, type WebSearchProvider } from './search/web-search.js';
 import { getSetting } from '../utils/config.js';
 import type { SearchProviderId } from '../utils/env.js';
 import { skillTool, SKILL_TOOL_DESCRIPTION } from './skill.js';
-import { isVnExtendedToolsEnabled } from './finance/api.js';
+import { isVnExtendedToolsEnabled, isVnNewsToolsEnabled, isVnTechnicalToolsEnabled } from './finance/api.js';
 import { createWebFetch, WEB_FETCH_DESCRIPTION } from './fetch/web-fetch.js';
 import { browserTool, BROWSER_DESCRIPTION } from './browser/browser.js';
 import { readFileTool, READ_FILE_DESCRIPTION } from './filesystem/read-file.js';
@@ -186,6 +207,47 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       tool: getMarketValuation,
       description: VN_MARKET_VALUATION_DESCRIPTION,
       compactDescription: 'VNINDEX market-wide valuation snapshot, including P/E and P/B context.',
+      concurrencySafe: true,
+    });
+  }
+
+  if (isVnNewsToolsEnabled()) {
+    tools.push({
+      name: 'vn_company_news',
+      tool: getCompanyNewsVn,
+      description: VN_COMPANY_NEWS_DESCRIPTION,
+      compactDescription: 'Ticker-specific VN company news through the local Silver-capable proxy.',
+      concurrencySafe: true,
+    });
+    tools.push({
+      name: 'vn_market_news',
+      tool: getMarketNewsVn,
+      description: VN_MARKET_NEWS_DESCRIPTION,
+      compactDescription: 'Trending or query-based VN market news through the local Silver-capable proxy.',
+      concurrencySafe: true,
+    });
+    tools.push({
+      name: 'vn_news_topics',
+      tool: getNewsTopicsVn,
+      description: VN_NEWS_TOPICS_DESCRIPTION,
+      compactDescription: 'Dominant current themes extracted from recent VN market news.',
+      concurrencySafe: true,
+    });
+  }
+
+  if (isVnTechnicalToolsEnabled()) {
+    tools.push({
+      name: 'vn_technical_indicators',
+      tool: getTechnicalIndicatorsVn,
+      description: VN_TECHNICAL_INDICATORS_DESCRIPTION,
+      compactDescription: 'VN technical indicators such as RSI, MACD, SMA, EMA, Bollinger Bands, and VWAP.',
+      concurrencySafe: true,
+    });
+    tools.push({
+      name: 'vn_technical_signal_snapshot',
+      tool: getTechnicalSignalSnapshotVn,
+      description: VN_TECHNICAL_SIGNAL_SNAPSHOT_DESCRIPTION,
+      compactDescription: 'Compact VN technical signal snapshot for a ticker through the local Silver-capable proxy.',
       concurrencySafe: true,
     });
   }

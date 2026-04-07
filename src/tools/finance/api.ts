@@ -5,6 +5,7 @@ import { isVnOnlyMode, normalizeVnTicker } from './vn-only.js';
 const DEFAULT_BASE_URL = 'https://api.financialdatasets.ai';
 const VN_EXTENDED_ENABLED_VALUES = new Set(['1', 'true', 'yes', 'on']);
 const LOCAL_PROXY_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', 'host.docker.internal']);
+const VN_PROXY_CAPABILITIES_TTL_MS = 5 * 60 * 1000;
 
 export interface ApiResponse {
   data: Record<string, unknown>;
@@ -33,6 +34,14 @@ export function isVnExtendedToolsEnabled(): boolean {
   }
   const baseUrl = process.env.FINANCE_BASE_URL || DEFAULT_BASE_URL;
   return isLocalProxyBaseUrl(baseUrl);
+}
+
+export function isVnNewsToolsEnabled(): boolean {
+  return isVnOnlyMode() && isEnvEnabled(process.env.ENABLE_VNSTOCK_NEWS);
+}
+
+export function isVnTechnicalToolsEnabled(): boolean {
+  return isVnOnlyMode() && isEnvEnabled(process.env.ENABLE_VNSTOCK_TA);
 }
 
 /**
@@ -276,3 +285,34 @@ export const api = {
 
 /** @deprecated Use `api.get` instead */
 export const callApi = api.get;
+
+interface VnProxyCapability {
+  enabled?: boolean;
+  installed?: boolean;
+  available?: boolean;
+  module?: string;
+  error?: string;
+}
+
+interface VnProxyCapabilitiesResponse {
+  capabilities?: Record<string, VnProxyCapability>;
+}
+
+async function getVnProxyCapabilities(): Promise<Record<string, VnProxyCapability>> {
+  const { data } = await api.get('/capabilities', {}, { cacheable: true, ttlMs: VN_PROXY_CAPABILITIES_TTL_MS });
+  const payload = data as VnProxyCapabilitiesResponse;
+  return payload.capabilities && typeof payload.capabilities === 'object' ? payload.capabilities : {};
+}
+
+export async function requireVnProxyCapability(capability: 'news' | 'technical_analysis'): Promise<void> {
+  const capabilities = await getVnProxyCapabilities();
+  const current = capabilities[capability];
+
+  if (current?.available) {
+    return;
+  }
+
+  const moduleName = current?.module || (capability === 'news' ? 'vnstock_news' : 'vnstock_ta');
+  const reason = current?.error || `${moduleName} is not available on the VN proxy.`;
+  throw new Error(`[VN Proxy] ${capability} capability unavailable: ${reason}`);
+}
