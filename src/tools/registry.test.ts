@@ -6,6 +6,7 @@ const originalEnv = {
   VN_ONLY_MODE: process.env.VN_ONLY_MODE,
   ENABLE_VNSTOCK_NEWS: process.env.ENABLE_VNSTOCK_NEWS,
   ENABLE_VNSTOCK_TA: process.env.ENABLE_VNSTOCK_TA,
+  ENABLE_HOUSEHOLD_TOOLS: process.env.ENABLE_HOUSEHOLD_TOOLS,
   ENABLE_VN_EXTENDED_TOOLS: process.env.ENABLE_VN_EXTENDED_TOOLS,
   FINANCE_BASE_URL: process.env.FINANCE_BASE_URL,
 };
@@ -51,5 +52,7 @@ describe('VN Silver env gating', () => {
     expect(names).toContain('vn_news_topics');
     expect(names).toContain('vn_technical_indicators');
     expect(names).toContain('vn_technical_signal_snapshot');
+    expect(names).toContain('household_fhsc_latest');
+    expect(names).toContain('household_fhsc_trades');
   });
 });

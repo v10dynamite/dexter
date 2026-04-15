@@ -21,3 +21,5 @@ export { getMarketNewsVn, VN_MARKET_NEWS_DESCRIPTION } from './vn-market-news.js
 export { getNewsTopicsVn, VN_NEWS_TOPICS_DESCRIPTION } from './vn-news-topics.js';
 export { getTechnicalIndicatorsVn, VN_TECHNICAL_INDICATORS_DESCRIPTION } from './vn-technical-indicators.js';
 export { getTechnicalSignalSnapshotVn, VN_TECHNICAL_SIGNAL_SNAPSHOT_DESCRIPTION } from './vn-technical-signal-snapshot.js';
+export { getHouseholdFhscLatest, HOUSEHOLD_FHSC_LATEST_DESCRIPTION } from './household-fhsc-latest.js';
+export { getHouseholdFhscTrades, HOUSEHOLD_FHSC_TRADES_DESCRIPTION } from './household-fhsc-trades.js';

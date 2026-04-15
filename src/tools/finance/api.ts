@@ -44,6 +44,17 @@ export function isVnTechnicalToolsEnabled(): boolean {
   return isVnOnlyMode() && isEnvEnabled(process.env.ENABLE_VNSTOCK_TA);
 }
 
+export function isHouseholdToolsEnabled(): boolean {
+  if (!isVnOnlyMode()) {
+    return false;
+  }
+  if (isEnvEnabled(process.env.ENABLE_HOUSEHOLD_TOOLS)) {
+    return true;
+  }
+  const baseUrl = process.env.FINANCE_BASE_URL || DEFAULT_BASE_URL;
+  return isLocalProxyBaseUrl(baseUrl);
+}
+
 /**
  * Remove redundant fields from API payloads before they are returned to the LLM.
  * This reduces token usage while preserving the financial metrics needed for analysis.

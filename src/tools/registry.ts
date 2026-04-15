@@ -6,12 +6,16 @@ import {
   createScreenStocks,
   getCompanyEvents,
   getCompanyNewsVn,
+  getHouseholdFhscLatest,
+  getHouseholdFhscTrades,
   getMarketNewsVn,
   getNewsTopicsVn,
   getMarketValuation,
   getSmartMoney,
   getTechnicalIndicatorsVn,
   getTechnicalSignalSnapshotVn,
+  HOUSEHOLD_FHSC_LATEST_DESCRIPTION,
+  HOUSEHOLD_FHSC_TRADES_DESCRIPTION,
   VN_COMPANY_EVENTS_DESCRIPTION,
   VN_COMPANY_NEWS_DESCRIPTION,
   VN_MARKET_NEWS_DESCRIPTION,
@@ -26,7 +30,7 @@ import { createWebSearchTool, type WebSearchProvider } from './search/web-search
 import { getSetting } from '../utils/config.js';
 import type { SearchProviderId } from '../utils/env.js';
 import { skillTool, SKILL_TOOL_DESCRIPTION } from './skill.js';
-import { isVnExtendedToolsEnabled, isVnNewsToolsEnabled, isVnTechnicalToolsEnabled } from './finance/api.js';
+import { isHouseholdToolsEnabled, isVnExtendedToolsEnabled, isVnNewsToolsEnabled, isVnTechnicalToolsEnabled } from './finance/api.js';
 import { createWebFetch, WEB_FETCH_DESCRIPTION } from './fetch/web-fetch.js';
 import { browserTool, BROWSER_DESCRIPTION } from './browser/browser.js';
 import { readFileTool, READ_FILE_DESCRIPTION } from './filesystem/read-file.js';
@@ -248,6 +252,23 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       tool: getTechnicalSignalSnapshotVn,
       description: VN_TECHNICAL_SIGNAL_SNAPSHOT_DESCRIPTION,
       compactDescription: 'Compact VN technical signal snapshot for a ticker through the local Silver-capable proxy.',
+      concurrencySafe: true,
+    });
+  }
+
+  if (isHouseholdToolsEnabled()) {
+    tools.push({
+      name: 'household_fhsc_latest',
+      tool: getHouseholdFhscLatest,
+      description: HOUSEHOLD_FHSC_LATEST_DESCRIPTION,
+      compactDescription: 'Latest synchronized FHSC portfolio snapshot from household ledger DB.',
+      concurrencySafe: true,
+    });
+    tools.push({
+      name: 'household_fhsc_trades',
+      tool: getHouseholdFhscTrades,
+      description: HOUSEHOLD_FHSC_TRADES_DESCRIPTION,
+      compactDescription: 'Synchronized FHSC trade history rows from household ledger DB.',
       concurrencySafe: true,
     });
   }
