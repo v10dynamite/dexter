@@ -14,6 +14,7 @@ import {
   getSmartMoney,
   getTechnicalIndicatorsVn,
   getTechnicalSignalSnapshotVn,
+  getDecisionSignalsVn,
   HOUSEHOLD_FHSC_LATEST_DESCRIPTION,
   HOUSEHOLD_FHSC_TRADES_DESCRIPTION,
   VN_COMPANY_EVENTS_DESCRIPTION,
@@ -24,6 +25,7 @@ import {
   VN_SMART_MONEY_DESCRIPTION,
   VN_TECHNICAL_INDICATORS_DESCRIPTION,
   VN_TECHNICAL_SIGNAL_SNAPSHOT_DESCRIPTION,
+  VN_DECISION_SIGNALS_DESCRIPTION,
 } from './finance/index.js';
 import { exaSearch, perplexitySearch, tavilySearch, langSearch, WEB_SEARCH_DESCRIPTION, xSearchTool, X_SEARCH_DESCRIPTION } from './search/index.js';
 import { createWebSearchTool, type WebSearchProvider } from './search/web-search.js';
@@ -193,6 +195,13 @@ export function getToolRegistry(model: string): RegisteredTool[] {
 
   if (isVnExtendedToolsEnabled()) {
     tools.push({
+      name: 'vn_decision_signals',
+      tool: getDecisionSignalsVn,
+      description: VN_DECISION_SIGNALS_DESCRIPTION,
+      compactDescription: 'Evidence-backed VN opportunity signal, transition, and planning-authority inbox. Human execution only.',
+      concurrencySafe: true,
+    });
+    tools.push({
       name: 'vn_smart_money',
       tool: getSmartMoney,
       description: VN_SMART_MONEY_DESCRIPTION,
@@ -340,7 +349,9 @@ export function getToolRegistry(model: string): RegisteredTool[] {
     });
   }
 
-  return vnOnlyMode ? tools.filter((tool) => tool.name !== 'read_filings') : tools;
+  return vnOnlyMode
+    ? tools.filter((tool) => tool.name !== 'read_filings' && tool.name !== 'stock_screener')
+    : tools;
 }
 
 /**

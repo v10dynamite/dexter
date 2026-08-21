@@ -52,7 +52,10 @@ describe('VN Silver env gating', () => {
     expect(names).toContain('vn_news_topics');
     expect(names).toContain('vn_technical_indicators');
     expect(names).toContain('vn_technical_signal_snapshot');
+    expect(names).toContain('vn_decision_signals');
     expect(names).toContain('household_fhsc_latest');
     expect(names).toContain('household_fhsc_trades');
+    expect(names).not.toContain('stock_screener');
+    expect(names).not.toContain('read_filings');
   });
 });
