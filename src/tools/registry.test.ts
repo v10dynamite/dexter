@@ -47,6 +47,7 @@ describe('VN Silver env gating', () => {
     expect(names).toContain('vn_smart_money');
     expect(names).toContain('vn_company_events');
     expect(names).toContain('vn_market_valuation');
+    expect(names).toContain('vn_market_discovery');
     expect(names).toContain('vn_company_news');
     expect(names).toContain('vn_market_news');
     expect(names).toContain('vn_news_topics');

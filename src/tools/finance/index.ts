@@ -16,6 +16,7 @@ export { createScreenStocks } from './screen-stocks.js';
 export { getSmartMoney, VN_SMART_MONEY_DESCRIPTION } from './vn-smart-money.js';
 export { getCompanyEvents, VN_COMPANY_EVENTS_DESCRIPTION } from './vn-company-events.js';
 export { getMarketValuation, VN_MARKET_VALUATION_DESCRIPTION } from './vn-market-valuation.js';
+export { getMarketDiscoveryVn, VN_MARKET_DISCOVERY_DESCRIPTION } from './vn-market-discovery.js';
 export { getCompanyNewsVn, VN_COMPANY_NEWS_DESCRIPTION } from './vn-company-news.js';
 export { getMarketNewsVn, VN_MARKET_NEWS_DESCRIPTION } from './vn-market-news.js';
 export { getNewsTopicsVn, VN_NEWS_TOPICS_DESCRIPTION } from './vn-news-topics.js';

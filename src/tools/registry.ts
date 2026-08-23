@@ -9,6 +9,7 @@ import {
   getHouseholdFhscLatest,
   getHouseholdFhscTrades,
   getMarketNewsVn,
+  getMarketDiscoveryVn,
   getNewsTopicsVn,
   getMarketValuation,
   getSmartMoney,
@@ -20,6 +21,7 @@ import {
   VN_COMPANY_EVENTS_DESCRIPTION,
   VN_COMPANY_NEWS_DESCRIPTION,
   VN_MARKET_NEWS_DESCRIPTION,
+  VN_MARKET_DISCOVERY_DESCRIPTION,
   VN_NEWS_TOPICS_DESCRIPTION,
   VN_MARKET_VALUATION_DESCRIPTION,
   VN_SMART_MONEY_DESCRIPTION,
@@ -194,6 +196,13 @@ export function getToolRegistry(model: string): RegisteredTool[] {
   ];
 
   if (isVnExtendedToolsEnabled()) {
+    tools.push({
+      name: 'vn_market_discovery',
+      tool: getMarketDiscoveryVn,
+      description: VN_MARKET_DISCOVERY_DESCRIPTION,
+      compactDescription: 'Latest persisted VN market discovery shortlist or market regime snapshot from the local proxy.',
+      concurrencySafe: true,
+    });
     tools.push({
       name: 'vn_decision_signals',
       tool: getDecisionSignalsVn,
