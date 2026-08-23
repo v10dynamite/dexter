@@ -8,6 +8,8 @@ const originalEnv = {
   ENABLE_VNSTOCK_TA: process.env.ENABLE_VNSTOCK_TA,
   ENABLE_HOUSEHOLD_TOOLS: process.env.ENABLE_HOUSEHOLD_TOOLS,
   ENABLE_VN_EXTENDED_TOOLS: process.env.ENABLE_VN_EXTENDED_TOOLS,
+  ENABLE_VNSTOCK_SKILL_CONTEXT: process.env.ENABLE_VNSTOCK_SKILL_CONTEXT,
+  LANGSMITH_TRACING: process.env.LANGSMITH_TRACING,
   FINANCE_BASE_URL: process.env.FINANCE_BASE_URL,
 };
 
@@ -40,6 +42,7 @@ describe('VN Silver env gating', () => {
     process.env.ENABLE_VN_EXTENDED_TOOLS = '1';
     process.env.ENABLE_VNSTOCK_NEWS = '1';
     process.env.ENABLE_VNSTOCK_TA = '1';
+    process.env.ENABLE_VNSTOCK_SKILL_CONTEXT = '1';
     process.env.FINANCE_BASE_URL = 'http://127.0.0.1:8787';
 
     const names = getToolRegistry('gpt-5.4').map((tool) => tool.name);
@@ -53,10 +56,22 @@ describe('VN Silver env gating', () => {
     expect(names).toContain('vn_news_topics');
     expect(names).toContain('vn_technical_indicators');
     expect(names).toContain('vn_technical_signal_snapshot');
+    expect(names).toContain('vn_skill_context');
     expect(names).toContain('vn_decision_signals');
     expect(names).toContain('household_fhsc_latest');
     expect(names).toContain('household_fhsc_trades');
     expect(names).not.toContain('stock_screener');
     expect(names).not.toContain('read_filings');
+  });
+
+  test('does not add vn_skill_context when LangSmith tracing is enabled', () => {
+    process.env.VN_ONLY_MODE = '1';
+    process.env.ENABLE_VNSTOCK_SKILL_CONTEXT = '1';
+    process.env.FINANCE_BASE_URL = 'http://127.0.0.1:8787';
+    process.env.LANGSMITH_TRACING = '1';
+
+    const names = getToolRegistry('gpt-5.4').map((tool) => tool.name);
+
+    expect(names).not.toContain('vn_skill_context');
   });
 });

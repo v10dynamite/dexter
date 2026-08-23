@@ -391,16 +391,26 @@ export class Agent {
     const toolMessageMap = new Map<string, ToolMessage>();
     let denied = false;
     const toolCalls = response.tool_calls!;
+    const prepared = this.toolExecutor.prepareExecution(response, ctx);
 
-    for await (const event of this.toolExecutor.executeAll(response, ctx)) {
+    for (const [toolCallId, content] of prepared.skippedToolMessages) {
+      toolMessageMap.set(toolCallId, new ToolMessage({
+        content,
+        tool_call_id: toolCallId,
+      }));
+    }
+
+    for await (const event of this.toolExecutor.executeAll(response, ctx, prepared)) {
       yield event;
 
       if (event.type === 'tool_end' && event.toolCallId) {
+        const privateContent = ctx.privateToolMessageContent.get(event.toolCallId);
         toolMessageMap.set(event.toolCallId, new ToolMessage({
-          content: event.result,
+          content: privateContent ?? event.result,
           tool_call_id: event.toolCallId,
           name: event.tool,
         }));
+        ctx.privateToolMessageContent.delete(event.toolCallId);
       } else if (event.type === 'tool_error' && event.toolCallId) {
         toolMessageMap.set(event.toolCallId, new ToolMessage({
           content: `Error: ${event.error}`,
@@ -420,7 +430,7 @@ export class Agent {
     // Produce ToolMessages in ORIGINAL tool_calls order
     const toolMessages: ToolMessage[] = toolCalls.map(tc =>
       toolMessageMap.get(tc.id!) ?? new ToolMessage({
-        content: 'Skipped (already executed).',
+        content: 'Skipped.',
         tool_call_id: tc.id!,
         name: tc.name,
       }),

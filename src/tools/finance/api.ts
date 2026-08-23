@@ -5,6 +5,7 @@ import { isVnOnlyMode, normalizeVnTicker } from './vn-only.js';
 const DEFAULT_BASE_URL = 'https://api.financialdatasets.ai';
 const VN_EXTENDED_ENABLED_VALUES = new Set(['1', 'true', 'yes', 'on']);
 const LOCAL_PROXY_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', 'host.docker.internal']);
+const LOOPBACK_PROXY_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1']);
 const VN_PROXY_CAPABILITIES_TTL_MS = 5 * 60 * 1000;
 
 export interface ApiResponse {
@@ -12,7 +13,7 @@ export interface ApiResponse {
   url: string;
 }
 
-function isEnvEnabled(value: string | undefined): boolean {
+export function isTruthyEnv(value: string | undefined): boolean {
   return VN_EXTENDED_ENABLED_VALUES.has(String(value || '').toLowerCase());
 }
 
@@ -25,11 +26,20 @@ function isLocalProxyBaseUrl(baseUrl: string): boolean {
   }
 }
 
+export function isLocalFinanceBaseUrl(baseUrl: string = process.env.FINANCE_BASE_URL || DEFAULT_BASE_URL): boolean {
+  try {
+    const hostname = new URL(baseUrl).hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    return LOOPBACK_PROXY_HOSTNAMES.has(hostname);
+  } catch {
+    return false;
+  }
+}
+
 export function isVnExtendedToolsEnabled(): boolean {
   if (!isVnOnlyMode()) {
     return false;
   }
-  if (isEnvEnabled(process.env.ENABLE_VN_EXTENDED_TOOLS)) {
+  if (isTruthyEnv(process.env.ENABLE_VN_EXTENDED_TOOLS)) {
     return true;
   }
   const baseUrl = process.env.FINANCE_BASE_URL || DEFAULT_BASE_URL;
@@ -37,18 +47,18 @@ export function isVnExtendedToolsEnabled(): boolean {
 }
 
 export function isVnNewsToolsEnabled(): boolean {
-  return isVnOnlyMode() && isEnvEnabled(process.env.ENABLE_VNSTOCK_NEWS);
+  return isVnOnlyMode() && isTruthyEnv(process.env.ENABLE_VNSTOCK_NEWS);
 }
 
 export function isVnTechnicalToolsEnabled(): boolean {
-  return isVnOnlyMode() && isEnvEnabled(process.env.ENABLE_VNSTOCK_TA);
+  return isVnOnlyMode() && isTruthyEnv(process.env.ENABLE_VNSTOCK_TA);
 }
 
 export function isHouseholdToolsEnabled(): boolean {
   if (!isVnOnlyMode()) {
     return false;
   }
-  if (isEnvEnabled(process.env.ENABLE_HOUSEHOLD_TOOLS)) {
+  if (isTruthyEnv(process.env.ENABLE_HOUSEHOLD_TOOLS)) {
     return true;
   }
   const baseUrl = process.env.FINANCE_BASE_URL || DEFAULT_BASE_URL;
@@ -280,6 +290,7 @@ export const api = {
   async post(
     endpoint: string,
     body: Record<string, unknown>,
+    options?: { signal?: AbortSignal },
   ): Promise<ApiResponse> {
     const label = `POST ${endpoint}`;
     const url = `${getBaseUrl()}${endpoint}`;
@@ -288,6 +299,7 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: options?.signal,
     });
 
     return { data, url };

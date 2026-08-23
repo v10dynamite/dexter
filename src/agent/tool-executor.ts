@@ -18,6 +18,7 @@ import { evaluatePermission, sessionKey } from '../permissions/engine.js';
 import { addRule } from '../permissions/rules.js';
 import type { PermissionDecision } from '../permissions/types.js';
 import type { RunContext } from './run-context.js';
+import { VN_SKILL_CONTEXT_ALLOWED_TOOL_NAMES, VnSkillContextInternalResultSchema } from '../tools/vn-skill-context.js';
 
 type ToolExecutionEvent =
   | ToolStartEvent
@@ -33,6 +34,11 @@ const DEFAULT_MAX_CONCURRENCY = 10;
 interface ToolCallBatch {
   concurrent: boolean;
   calls: ToolCall[];
+}
+
+interface PreparedToolExecution {
+  calls: ToolCall[];
+  skippedToolMessages: Map<string, string>;
 }
 
 /**
@@ -73,8 +79,10 @@ export class AgentToolExecutor {
   async *executeAll(
     response: AIMessage,
     ctx: RunContext,
+    prepared?: PreparedToolExecution,
   ): AsyncGenerator<ToolExecutionEvent, void> {
-    const batches = this.partitionToolCalls(response.tool_calls!, ctx);
+    const execution = prepared ?? this.prepareExecution(response, ctx);
+    const batches = this.partitionToolCalls(execution.calls);
 
     for (const batch of batches) {
       if (batch.concurrent && batch.calls.length > 1) {
@@ -87,20 +95,81 @@ export class AgentToolExecutor {
     }
   }
 
+  prepareExecution(response: AIMessage, ctx: RunContext): PreparedToolExecution {
+    const toolCalls = response.tool_calls ?? [];
+    const firstContextCall = toolCalls.find((call) => call.name === 'vn_skill_context');
+    const skippedToolMessages = new Map<string, string>();
+
+    if (firstContextCall) {
+      const slug = typeof firstContextCall.args?.slug === 'string' ? firstContextCall.args.slug : undefined;
+      if (slug && ctx.seenVnSkillContextSlugs.has(slug)) {
+        skippedToolMessages.set(
+          firstContextCall.id!,
+          'Skipped (vn_skill_context slug can only be loaded once per query).',
+        );
+        for (const call of toolCalls) {
+          if (call.id === firstContextCall.id) {
+            continue;
+          }
+          skippedToolMessages.set(
+            call.id!,
+            'Skipped because vn_skill_context must be the sole tool call in its iteration.',
+          );
+        }
+        return { calls: [], skippedToolMessages };
+      }
+      if (slug) {
+        ctx.seenVnSkillContextSlugs.add(slug);
+      }
+
+      for (const call of toolCalls) {
+        if (call.id === firstContextCall.id) {
+          continue;
+        }
+        skippedToolMessages.set(
+          call.id!,
+          'Skipped because vn_skill_context must be the sole tool call in its iteration.',
+        );
+      }
+
+      return { calls: [firstContextCall], skippedToolMessages };
+    }
+
+    const calls: ToolCall[] = [];
+    for (const call of toolCalls) {
+      if (call.name === 'skill') {
+        const skillName = (call.args as Record<string, unknown>).skill as string;
+        if (ctx.scratchpad.hasExecutedSkill(skillName)) {
+          skippedToolMessages.set(call.id!, 'Skipped (skill already executed in this query).');
+          continue;
+        }
+      }
+
+      if (call.name === 'vn_skill_context') {
+        const slug = typeof call.args?.slug === 'string' ? call.args.slug : undefined;
+        if (slug && ctx.seenVnSkillContextSlugs.has(slug)) {
+          skippedToolMessages.set(call.id!, 'Skipped (vn_skill_context slug can only be loaded once per query).');
+          continue;
+        }
+        if (slug) {
+          ctx.seenVnSkillContextSlugs.add(slug);
+        }
+      }
+
+      calls.push(call);
+    }
+
+    return { calls, skippedToolMessages };
+  }
+
   /**
    * Partition tool_calls into batches of consecutive concurrent-safe calls
    * vs individual non-concurrent calls.
    */
-  private partitionToolCalls(toolCalls: ToolCall[], ctx: RunContext): ToolCallBatch[] {
+  private partitionToolCalls(toolCalls: ToolCall[]): ToolCallBatch[] {
     const batches: ToolCallBatch[] = [];
 
     for (const call of toolCalls) {
-      // Skill dedup — skip already-executed skills
-      if (call.name === 'skill') {
-        const skillName = (call.args as Record<string, unknown>).skill as string;
-        if (ctx.scratchpad.hasExecutedSkill(skillName)) continue;
-      }
-
       const isSafe = this.concurrencyMap.get(call.name) ?? false;
       const lastBatch = batches[batches.length - 1];
 
@@ -136,6 +205,11 @@ export class AgentToolExecutor {
     const toolArgs = call.args as Record<string, unknown>;
     const toolCallId = call.id;
     const toolQuery = this.extractQueryFromArgs(toolArgs);
+
+    if (ctx.restrictedToolAllowlist && !ctx.restrictedToolAllowlist.has(toolName)) {
+      yield { type: 'tool_denied', tool: toolName, args: toolArgs, toolCallId };
+      return;
+    }
 
     // Permission gate: the engine decides allow / ask / deny per call.
     const permission = evaluatePermission({ tool: toolName, args: toolArgs });
@@ -206,13 +280,32 @@ export class AgentToolExecutor {
       }
 
       const rawResult = await toolPromise;
-      const result = typeof rawResult === 'string' ? rawResult : JSON.stringify(rawResult);
+      const internal = VnSkillContextInternalResultSchema.safeParse(rawResult);
+      const result = internal.success
+        ? internal.data.publicResult
+        : typeof rawResult === 'string'
+          ? rawResult
+          : JSON.stringify(rawResult);
       const duration = Date.now() - toolStartTime;
 
-      yield { type: 'tool_end', tool: toolName, args: toolArgs, result, duration, toolCallId };
+      if (internal.success && toolCallId) {
+        ctx.privateToolMessageContent.set(toolCallId, internal.data.toolMessageContent);
+      }
+
+      yield {
+        type: 'tool_end',
+        tool: toolName,
+        args: toolArgs,
+        result,
+        duration,
+        toolCallId,
+      };
 
       ctx.scratchpad.recordToolCall(toolName, toolQuery);
       ctx.scratchpad.addToolResult(toolName, toolArgs, result);
+      if (internal.success && internal.data.advisoryContextActivated) {
+        ctx.restrictedToolAllowlist = new Set(VN_SKILL_CONTEXT_ALLOWED_TOOL_NAMES);
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       yield { type: 'tool_error', tool: toolName, error: errorMessage, toolCallId };

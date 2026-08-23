@@ -9,7 +9,10 @@ export interface RunContext {
   readonly scratchpad: Scratchpad;
   readonly tokenCounter: TokenCounter;
   readonly startTime: number;
+  readonly seenVnSkillContextSlugs: Set<string>;
+  readonly privateToolMessageContent: Map<string, string>;
   iteration: number;
+  restrictedToolAllowlist: Set<string> | null;
   /**
    * Input token count from the most recent API response.
    * This is the actual context size reported by the API — far more accurate
@@ -25,7 +28,10 @@ export function createRunContext(query: string): RunContext {
     scratchpad: new Scratchpad(query),
     tokenCounter: new TokenCounter(),
     startTime: Date.now(),
+    seenVnSkillContextSlugs: new Set(),
+    privateToolMessageContent: new Map(),
     iteration: 0,
+    restrictedToolAllowlist: null,
     lastApiInputTokens: 0,
   };
 }

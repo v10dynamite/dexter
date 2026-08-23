@@ -51,6 +51,7 @@ import { discoverSkills } from '../skills/index.js';
 import { createSpawnSubagent, SPAWN_SUBAGENT_DESCRIPTION } from './subagent/spawn-subagent.js';
 import { createAskUserQuestion, ASK_USER_QUESTION_DESCRIPTION } from './ask-user-question/ask-user-question.js';
 import { createBash, BASH_TOOL_DESCRIPTION } from './bash/bash-tool.js';
+import { createVnSkillContextTool, isVnSkillContextEnabled, VN_SKILL_CONTEXT_DESCRIPTION } from './vn-skill-context.js';
 
 /**
  * A registered tool with its rich description for system prompt injection.
@@ -271,6 +272,16 @@ export function getToolRegistry(model: string): RegisteredTool[] {
       description: VN_TECHNICAL_SIGNAL_SNAPSHOT_DESCRIPTION,
       compactDescription: 'Compact VN technical signal snapshot for a ticker through the local Silver-capable proxy.',
       concurrencySafe: true,
+    });
+  }
+
+  if (isVnSkillContextEnabled()) {
+    tools.push({
+      name: 'vn_skill_context',
+      tool: createVnSkillContextTool(),
+      description: VN_SKILL_CONTEXT_DESCRIPTION,
+      compactDescription: 'Load advisory-only VN Skills Hub context from the local proxy. Metadata is public; raw content stays request-local.',
+      concurrencySafe: false,
     });
   }
 
